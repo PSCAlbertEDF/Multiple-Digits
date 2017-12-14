@@ -5,75 +5,52 @@ A TensorFlow implementation of [Multi-digit Number Recognition from Street View 
 
 ## Graph
 
-![Graph](https://github.com/potterhsu/SVHNClassifier/blob/master/images/graph.png?raw=true)
+![Graph](/images/graph.png?raw=true)
 
 
-## Results
+### Inference of image
 
-### Accuracy
-![Accuracy](https://github.com/potterhsu/SVHNClassifier/blob/master/images/accuracy.png?raw=true)
-
-> Accuracy 93.45% on test dataset after about 14 hours
-
-### Loss
-![Loss](https://github.com/potterhsu/SVHNClassifier/blob/master/images/loss.png?raw=true)
-
-### Samples
-
-| Training      | Test          |
-|:-------------:|:-------------:|
-| ![Train1](https://github.com/potterhsu/SVHNClassifier/blob/master/images/train1.png?raw=true) | ![Test1](https://github.com/potterhsu/SVHNClassifier/blob/master/images/test1.png?raw=true) |
-| ![Train2](https://github.com/potterhsu/SVHNClassifier/blob/master/images/train2.png?raw=true) | ![Test2](https://github.com/potterhsu/SVHNClassifier/blob/master/images/test2.png?raw=true) |
-
-### Inference of outside image
-
-<img src="https://github.com/potterhsu/SVHNClassifier/blob/master/images/inference1.png?raw=true" width="250">
-<img src="https://github.com/potterhsu/SVHNClassifier/blob/master/images/inference2.png?raw=true" width="250">
+<img /images/1.jpg?raw=true>
 
 > digit "10" means no digits
+> letter "0" means no letters
 
 ## Requirements
 
 * Python 2.7
 * Tensorflow
-* h5py
 
-    ```
-    In Ubuntu:
-    $ sudo apt-get install libhdf5-dev
-    $ sudo pip install h5py
-    ```
 
 ## Setup
 
 1. Clone the source code
 
     ```
-    $ git clone https://github.com/potterhsu/SVHNClassifier
-    $ cd SVHNClassifier
+    $ git clone https://github.com/PSCAlbertEDF/Multiple-Digits
+    $ cd Multiple-Digits
     ```
 
-2. Download [SVHN Dataset](http://ufldl.stanford.edu/housenumbers/) format 1
+2. Generate [Dataset]
 
 3. Extract to data folder, now your folder structure should be like below:
     ```
-    SVHNClassifier
+    Multiple-Digits
         - data
             - extra
                 - 1.png 
                 - 2.png
                 - ...
-                - digitStruct.mat
+                - result.txt
             - test
                 - 1.png 
                 - 2.png
                 - ...
-                - digitStruct.mat
+                - result.txt
             - train
                 - 1.png 
                 - 2.png
                 - ...
-                - digitStruct.mat
+                - result.txt
     ```
 
 

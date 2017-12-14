@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import h5py
 import random
 from PIL import Image
 import tensorflow as tf
@@ -18,31 +17,6 @@ class ExampleReader(object):
         self._example_pointer = 0
 
     @staticmethod
-    def _get_attrs(digit_struct_mat_file, index):
-        """
-        Returns a dictionary which contains keys: label, left, top, width and height, each key has multiple values.
-        """
-        attrs = {}
-        f = digit_struct_mat_file
-        item = f['digitStruct']['bbox'][index].item()
-        for key in ['label', 'left', 'top', 'width', 'height']:
-            attr = f[item][key]
-            values = [f[attr.value[i].item()].value[0][0]
-                      for i in range(len(attr))] if len(attr) > 1 else [attr.value[0][0]]
-            attrs[key] = values
-        return attrs
-
-    @staticmethod
-    def _preprocess(image, bbox_left, bbox_top, bbox_width, bbox_height):
-        cropped_left, cropped_top, cropped_width, cropped_height = (int(round(bbox_left - 0.15 * bbox_width)),
-                                                                    int(round(bbox_top - 0.15 * bbox_height)),
-                                                                    int(round(bbox_width * 1.3)),
-                                                                    int(round(bbox_height * 1.3)))
-        image = image.crop([cropped_left, cropped_top, cropped_left + cropped_width, cropped_top + cropped_height])
-        image = image.resize([64, 64])
-        return image
-
-    @staticmethod
     def _int64_feature(value):
         return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
@@ -54,50 +28,47 @@ class ExampleReader(object):
     def _bytes_feature(value):
         return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
-    def read_and_convert(self, digit_struct_mat_file):
+    def read_and_convert(self, result_file):
         """
         Read and convert to example, returns None if no data is available.
         """
         if self._example_pointer == self._num_examples:
             return None
         path_to_image_file = self._path_to_image_files[self._example_pointer]
-        index = int(path_to_image_file.split('/')[-1].split('.')[0]) - 1
+
+        # Get image index
+        index = int(path_to_image_file.split('/')[-1].split('.')[0])
         self._example_pointer += 1
 
-        attrs = ExampleReader._get_attrs(digit_struct_mat_file, index)
-        label_of_digits = attrs['label']
+        label_of_digits = result_file[index].strip().split(' ')
         length = len(label_of_digits)
-        if length > 5:
-            # skip this example
-            return self.read_and_convert(digit_struct_mat_file)
 
-        digits = [10, 10, 10, 10, 10]   # digit 10 represents no digit
-        for idx, label_of_digit in enumerate(label_of_digits):
-            digits[idx] = int(label_of_digit if label_of_digit != 10 else 0)    # label 10 is essentially digit zero
+        # for digits: 10 represents no digit, for letters: 0 represents no letter
+        digits = [10, 10, 10, 10]
+        letters = [0, 0, 0, 0, 0]
+        idd = 0
+        idl = 0
+        for i in range(length):
+            if i in [0, 4, 5, 6]:
+                digits[idd] = int(label_of_digits[i])    # label 10 is essentially digit zero
+                idd += 1
+            if i in [1, 2, 3, 7, 8]:
+                letters[idl] = int(label_of_digits[i])
+                idl += 1
 
-        attrs_left, attrs_top, attrs_width, attrs_height = map(lambda x: [int(i) for i in x], [attrs['left'], attrs['top'], attrs['width'], attrs['height']])
-        min_left, min_top, max_right, max_bottom = (min(attrs_left),
-                                                    min(attrs_top),
-                                                    max(map(lambda x, y: x + y, attrs_left, attrs_width)),
-                                                    max(map(lambda x, y: x + y, attrs_top, attrs_height)))
-        center_x, center_y, max_side = ((min_left + max_right) / 2.0,
-                                        (min_top + max_bottom) / 2.0,
-                                        max(max_right - min_left, max_bottom - min_top))
-        bbox_left, bbox_top, bbox_width, bbox_height = (center_x - max_side / 2.0,
-                                                        center_y - max_side / 2.0,
-                                                        max_side,
-                                                        max_side)
-        image = np.array(ExampleReader._preprocess(Image.open(path_to_image_file), bbox_left, bbox_top, bbox_width, bbox_height)).tobytes()
+        image = Image.open(path_to_image_file).resize([27, 116])
+        image = np.array(image).tobytes()
 
         example = tf.train.Example(features=tf.train.Features(feature={
             'image': ExampleReader._bytes_feature(image),
             'length': ExampleReader._int64_feature(length),
-            'digits': tf.train.Feature(int64_list=tf.train.Int64List(value=digits))
+            'digits': tf.train.Feature(int64_list=tf.train.Int64List(value=digits)),
+            'letters': tf.train.Feature(int64_list=tf.train.Int64List(value=letters))
         }))
         return example
 
 
-def convert_to_tfrecords(path_to_dataset_dir_and_digit_struct_mat_file_tuples,
+def convert_to_tfrecords(path_to_dataset_dir_and_digit_result_file_tuples,
                          path_to_tfrecords_files, choose_writer_callback):
     num_examples = []
     writers = []
@@ -106,23 +77,23 @@ def convert_to_tfrecords(path_to_dataset_dir_and_digit_struct_mat_file_tuples,
         num_examples.append(0)
         writers.append(tf.python_io.TFRecordWriter(path_to_tfrecords_file))
 
-    for path_to_dataset_dir, path_to_digit_struct_mat_file in path_to_dataset_dir_and_digit_struct_mat_file_tuples:
-        path_to_image_files = tf.gfile.Glob(os.path.join(path_to_dataset_dir, '*.png'))
+    for path_to_dataset_dir, path_to_digit_result_file in path_to_dataset_dir_and_digit_result_file_tuples:
+        path_to_image_files = tf.gfile.Glob(os.path.join(path_to_dataset_dir, '*.jpg'))
         total_files = len(path_to_image_files)
         print '%d files found in %s' % (total_files, path_to_dataset_dir)
 
-        with h5py.File(path_to_digit_struct_mat_file, 'r') as digit_struct_mat_file:
-            example_reader = ExampleReader(path_to_image_files)
-            for index, path_to_image_file in enumerate(path_to_image_files):
-                print '(%d/%d) processing %s' % (index + 1, total_files, path_to_image_file)
+        digit_result_file = open(path_to_digit_result_file, 'r').readlines()
+        example_reader = ExampleReader(path_to_image_files)
+        for index, path_to_image_file in enumerate(path_to_image_files):
+            print '(%d/%d) processing %s' % (index + 1, total_files, path_to_image_file)
 
-                example = example_reader.read_and_convert(digit_struct_mat_file)
-                if example is None:
-                    break
+            example = example_reader.read_and_convert(digit_result_file)
+            if example is None:
+                break
 
-                idx = choose_writer_callback(path_to_tfrecords_files)
-                writers[idx].write(example.SerializeToString())
-                num_examples[idx] += 1
+            idx = choose_writer_callback(path_to_tfrecords_files)
+            writers[idx].write(example.SerializeToString())
+            num_examples[idx] += 1
 
     for writer in writers:
         writer.close()
@@ -144,9 +115,9 @@ def main(_):
     path_to_train_dir = os.path.join(FLAGS.data_dir, 'train')
     path_to_test_dir = os.path.join(FLAGS.data_dir, 'test')
     path_to_extra_dir = os.path.join(FLAGS.data_dir, 'extra')
-    path_to_train_digit_struct_mat_file = os.path.join(path_to_train_dir, 'digitStruct.mat')
-    path_to_test_digit_struct_mat_file = os.path.join(path_to_test_dir, 'digitStruct.mat')
-    path_to_extra_digit_struct_mat_file = os.path.join(path_to_extra_dir, 'digitStruct.mat')
+    path_to_train_digit_result_file = os.path.join(path_to_train_dir, 'result.txt')
+    path_to_test_digit_result_file = os.path.join(path_to_test_dir, 'result.txt')
+    path_to_extra_digit_result_file = os.path.join(path_to_extra_dir, 'result.txt')
 
     path_to_train_tfrecords_file = os.path.join(FLAGS.data_dir, 'train.tfrecords')
     path_to_val_tfrecords_file = os.path.join(FLAGS.data_dir, 'val.tfrecords')
@@ -157,12 +128,11 @@ def main(_):
         assert not os.path.exists(path_to_file), 'The file %s already exists' % path_to_file
 
     print 'Processing training and validation data...'
-    [num_train_examples, num_val_examples] = convert_to_tfrecords([(path_to_train_dir, path_to_train_digit_struct_mat_file),
-                                                                   (path_to_extra_dir, path_to_extra_digit_struct_mat_file)],
+    [num_train_examples, num_val_examples] = convert_to_tfrecords([(path_to_train_dir, path_to_train_digit_result_file)],
                                                                   [path_to_train_tfrecords_file, path_to_val_tfrecords_file],
                                                                   lambda paths: 0 if random.random() > 0.1 else 1)
     print 'Processing test data...'
-    [num_test_examples] = convert_to_tfrecords([(path_to_test_dir, path_to_test_digit_struct_mat_file)],
+    [num_test_examples] = convert_to_tfrecords([(path_to_test_dir, path_to_test_digit_result_file)],
                                                [path_to_test_tfrecords_file],
                                                lambda paths: 0)
 
