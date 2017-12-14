@@ -10,9 +10,10 @@ A TensorFlow implementation of [Multi-digit Number Recognition from Street View 
 
 ### Inference of image
 
-<img /images/1.jpg?raw=true>
+![Graph](/images/3.jpg?raw=true)
 
 > digit "10" means no digits
+
 > letter "0" means no letters
 
 ## Requirements
