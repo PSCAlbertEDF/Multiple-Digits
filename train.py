@@ -11,8 +11,8 @@ tf.app.flags.DEFINE_string('data_dir', './data', 'Directory to read TFRecords fi
 tf.app.flags.DEFINE_string('train_logdir', './logs/train', 'Directory to write training logs')
 tf.app.flags.DEFINE_string('restore_checkpoint', None,
                            'Path to restore checkpoint (without postfix), e.g. ./logs/train/model.ckpt-100')
-tf.app.flags.DEFINE_integer('batch_size', 64, 'Default 32')
-tf.app.flags.DEFINE_float('learning_rate', 1e-3, 'Default 1e-2')
+tf.app.flags.DEFINE_integer('batch_size', 128, 'Default 32')
+tf.app.flags.DEFINE_float('learning_rate', 1e-2, 'Default 1e-2')
 tf.app.flags.DEFINE_integer('patience', 100, 'Default 100, set -1 to train infinitely')
 tf.app.flags.DEFINE_integer('decay_steps', 10000, 'Default 10000')
 tf.app.flags.DEFINE_float('decay_rate', 0.9, 'Default 0.9')
@@ -23,16 +23,16 @@ def _train(path_to_train_tfrecords_file, num_train_examples, path_to_val_tfrecor
            path_to_train_log_dir, path_to_restore_checkpoint_file, training_options):
     batch_size = training_options['batch_size']
     initial_patience = training_options['patience']
-    num_steps_to_show_loss = 10
-    num_steps_to_check = 100
+    num_steps_to_show_loss = 100
+    num_steps_to_check = 500
 
     with tf.Graph().as_default():
-        image_batch, length_batch, digits_batch, letters_batch = Donkey.build_batch(path_to_train_tfrecords_file,
+        image_batch, digits_batch, letters_batch = Donkey.build_batch(path_to_train_tfrecords_file,
                                                                      num_examples=num_train_examples,
                                                                      batch_size=batch_size,
                                                                      shuffled=True)
-        length_logtis, digits_logits, letters_logits = Model.inference(image_batch, drop_rate=0.2)
-        loss = Model.loss(length_logtis, digits_logits, letters_logits, length_batch, digits_batch, letters_batch)
+        digits_logits, letters_logits = Model.inference(image_batch, drop_rate=0.2)
+        loss = Model.loss(digits_logits, letters_logits, digits_batch, letters_batch)
 
         global_step = tf.Variable(0, name='global_step', trainable=False)
         learning_rate = tf.train.exponential_decay(training_options['learning_rate'], global_step=global_step,
@@ -59,7 +59,11 @@ def _train(path_to_train_tfrecords_file, num_train_examples, path_to_val_tfrecor
                     '%s not found' % path_to_restore_checkpoint_file
                 saver.restore(sess, path_to_restore_checkpoint_file)
                 print 'Model restored from file: %s' % path_to_restore_checkpoint_file
-
+            
+            f = open('log.txt', 'a')
+            head='Start training'
+            f.write(head)
+            f.close()
             print 'Start training'
             patience = initial_patience
             best_accuracy = 0.0
@@ -73,19 +77,32 @@ def _train(path_to_train_tfrecords_file, num_train_examples, path_to_val_tfrecor
                 if global_step_val % num_steps_to_show_loss == 0:
                     examples_per_sec = batch_size * num_steps_to_show_loss / duration
                     duration = 0.0
-                    print '=> %s: step %d, loss = %f (%.1f examples/sec)' % (
+                    f = open('log.txt', 'a')
+                    head='\n=> %s: step %d, loss = %f (%.1f examples/sec)' % (
                         datetime.now(), global_step_val, loss_val, examples_per_sec)
+                    f.write(head)
+                    f.close()
+                    print head
 
                 if global_step_val % num_steps_to_check != 0:
                     continue
 
                 summary_writer.add_summary(summary_val, global_step=global_step_val)
+                
+                f = open('log.txt', 'a')
+                head='\n=> Evaluating on validation dataset...'
+                f.write(head)
+                f.close()
 
                 print '=> Evaluating on validation dataset...'
                 path_to_latest_checkpoint_file = saver.save(sess, os.path.join(path_to_train_log_dir, 'latest.ckpt'))
                 accuracy = evaluator.evaluate(path_to_latest_checkpoint_file, path_to_val_tfrecords_file,
                                               num_val_examples,
                                               global_step_val)
+                f = open('log.txt', 'a')
+                head='\n==> accuracy = %f, best accuracy %f' % (accuracy, best_accuracy)
+                f.write(head)
+                f.close()
                 print '==> accuracy = %f, best accuracy %f' % (accuracy, best_accuracy)
 
                 if accuracy > best_accuracy:

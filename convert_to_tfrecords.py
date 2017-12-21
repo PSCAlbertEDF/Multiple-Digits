@@ -41,14 +41,13 @@ class ExampleReader(object):
         self._example_pointer += 1
 
         label_of_digits = result_file[index].strip().split(' ')
-        length = len(label_of_digits)
 
         # for digits: 10 represents no digit, for letters: 0 represents no letter
         digits = [10, 10, 10, 10]
         letters = [0, 0, 0, 0, 0]
         idd = 0
         idl = 0
-        for i in range(length):
+        for i in range(len(label_of_digits)):
             if i in [0, 4, 5, 6]:
                 digits[idd] = int(label_of_digits[i])    # label 10 is essentially digit zero
                 idd += 1
@@ -56,12 +55,12 @@ class ExampleReader(object):
                 letters[idl] = int(label_of_digits[i])
                 idl += 1
 
-        image = Image.open(path_to_image_file).resize([27, 116])
+        image = Image.open(path_to_image_file)
+        image = image.resize([96, 24])
         image = np.array(image).tobytes()
 
         example = tf.train.Example(features=tf.train.Features(feature={
             'image': ExampleReader._bytes_feature(image),
-            'length': ExampleReader._int64_feature(length),
             'digits': tf.train.Feature(int64_list=tf.train.Int64List(value=digits)),
             'letters': tf.train.Feature(int64_list=tf.train.Int64List(value=letters))
         }))
@@ -78,7 +77,7 @@ def convert_to_tfrecords(path_to_dataset_dir_and_digit_result_file_tuples,
         writers.append(tf.python_io.TFRecordWriter(path_to_tfrecords_file))
 
     for path_to_dataset_dir, path_to_digit_result_file in path_to_dataset_dir_and_digit_result_file_tuples:
-        path_to_image_files = tf.gfile.Glob(os.path.join(path_to_dataset_dir, '*.jpg'))
+        path_to_image_files = tf.gfile.Glob(os.path.join(path_to_dataset_dir, '*.png'))
         total_files = len(path_to_image_files)
         print '%d files found in %s' % (total_files, path_to_dataset_dir)
 
@@ -124,8 +123,6 @@ def main(_):
     path_to_test_tfrecords_file = os.path.join(FLAGS.data_dir, 'test.tfrecords')
     path_to_tfrecords_meta_file = os.path.join(FLAGS.data_dir, 'meta.json')
 
-    for path_to_file in [path_to_train_tfrecords_file, path_to_val_tfrecords_file, path_to_test_tfrecords_file]:
-        assert not os.path.exists(path_to_file), 'The file %s already exists' % path_to_file
 
     print 'Processing training and validation data...'
     [num_train_examples, num_val_examples] = convert_to_tfrecords([(path_to_train_dir, path_to_train_digit_result_file)],

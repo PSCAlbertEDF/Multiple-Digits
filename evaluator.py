@@ -10,24 +10,18 @@ class Evaluator(object):
     def evaluate(self, path_to_checkpoint, path_to_tfrecords_file, num_examples, global_step):
         batch_size = 128
         num_batches = num_examples / batch_size
-        needs_include_length = False
 
         with tf.Graph().as_default():
-            image_batch, length_batch, digits_batch, letters_batch = Donkey.build_batch(path_to_tfrecords_file,
+            image_batch, digits_batch, letters_batch = Donkey.build_batch(path_to_tfrecords_file,
                                                                          num_examples=num_examples,
                                                                          batch_size=batch_size,
                                                                          shuffled=False)
-            length_logits, digits_logits, letters_logits = Model.inference(image_batch, drop_rate=0.0)
-            length_predictions = tf.argmax(length_logits, axis=1)
+            digits_logits, letters_logits = Model.inference(image_batch, drop_rate=0.0)
             digits_predictions = tf.argmax(digits_logits, axis=2)
             letters_predictions = tf.argmax(letters_logits, axis=2)
 
-            if needs_include_length:
-                labels = tf.concat([tf.reshape(length_batch, [-1, 1]), digits_batch, letters_batch], axis=1)
-                predictions = tf.concat([tf.reshape(length_predictions, [-1, 1]), digits_predictions, letters_predictions], axis=1)
-            else:
-                labels = tf.concat([digits_batch, letters_batch], axis=1)
-                predictions = tf.concat([digits_predictions, letters_predictions], axis=1)
+            labels = tf.concat([digits_batch, letters_batch], axis=1)
+            predictions = tf.concat([digits_predictions, letters_predictions], axis=1)
 
             labels_string = tf.reduce_join(tf.as_string(labels), axis=1)
             predictions_string = tf.reduce_join(tf.as_string(predictions), axis=1)
